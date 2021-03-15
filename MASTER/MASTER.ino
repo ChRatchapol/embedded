@@ -37,7 +37,7 @@ uint8_t broadcastAddressRFID[] = {0xa4, 0xcf, 0x12, 0x8f, 0x88, 0x44}; // RFID M
 
 typedef struct reg_message {
   int _val; // 0 = invalid, 1 = valid, 2 = button OTP verify successful, 3 = button OTP verify failed, 4 = RFID UUID recv, 5 = RFID write confirm
-  char uuid[16]; // for RFID uuid, if _val is 2, 4, 5 then this will be "11111111..." for yes and "00000000..." for no.
+  char uuid[8]; // for RFID uuid, if _val is 2, 4, 5 then this will be "11111111..." for yes and "00000000..." for no.
 } reg_message;
 reg_message myData;
 
@@ -232,6 +232,7 @@ void setup() {
   Serial.begin(115200); // start serial
   pinMode(led, OUTPUT);
   pinMode(sig, OUTPUT);
+  digitalWrite(sig, HIGH);
 
   WiFi.mode(WIFI_STA); // for esp-now
 
