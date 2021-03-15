@@ -63,7 +63,11 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     OPEN(); // open
     led_blink(5, 100);
   } else if (myData._val == 0) { // fail sig
-    strcpy(msg._msg, "11111111"); // tell OLED to show fail sequence on screen
+    if (strcmp(myData.uuid, "01011010") == 0) {
+      strcpy(msg._msg, myData.uuid);
+    } else {
+      strcpy(msg._msg, "11111111"); // tell OLED to show fail sequence on screen
+    }
     msg._type = 0;
     led_blink(2, 50);
   } else if (myData._val == 2) { // button OTP verify successful

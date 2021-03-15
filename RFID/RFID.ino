@@ -10,6 +10,8 @@
 #define greenPin 12
 #define redPin 32
 
+#define ptd portTICK_PERIOD_MS
+
 //used in authentication
 MFRC522::MIFARE_Key key;
 //authentication return status code
@@ -18,6 +20,8 @@ MFRC522::StatusCode status;
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
 uint8_t broadcastAddress[] = {0x3c, 0x61, 0x05, 0x03, 0xb4, 0x4c}; // master MAC
+
+TaskHandle_t notiTask = NULL;
 
 typedef struct reg_message {
   int _val; // 0 = invalid, 1 = valid, 2 = button OTP verify successful, 3 = button OTP verify failed, 4 = RFID UUID recv, 5 = RFID write confirm
@@ -41,6 +45,9 @@ bool res; // state ctrl
 byte buffer[SIZE_BUFFER] = {0}; // buffer for read data
 byte writeBuffer[SIZE_BUFFER]; // buffer for write data
 byte startState[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // RFID start state
+char writeData[16];
+bool spc = false;
+bool notiAct = false;
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // execute on send
   if (status == ESP_NOW_SEND_SUCCESS) { // for indicate
@@ -172,7 +179,10 @@ void RFID_CTRL() { // signup ctrl func
     state = 0;
   } else if (state == 2) {
     timeout = millis();
-    WRITE("ku_kod_lnw$482__");
+    if (!spc) {
+      strcpy(writeData, "ku_kod_lnw$482__");
+    }
+    WRITE(writeData);
     state = 0;
   }
 }
@@ -206,6 +216,9 @@ void setup() {
   // Init MFRC522
   SPI.begin(); // Init SPI bus
   mfrc522.PCD_Init();
+
+  xTaskCreatePinnedToCore(noti, "noti send", 1024, NULL, 1, &notiTask, 0);
+
   Serial.println("Approach your reader card...");
   Serial.println();
 }
@@ -240,12 +253,12 @@ bool chk_RFID() { // checking RFID here
   }
 }
 
-void led_blink(int times, int _delay) { // just led blinker func
+void led_blink(int times, int _vTaskDelay) { // just led blinker func
   for (int i = 0; i < times; i++) {
     digitalWrite(led, HIGH);
-    delay(_delay);
+    vTaskDelay(_vTaskDelay / ptd);
     digitalWrite(led, LOW);
-    delay(_delay);
+    vTaskDelay(_vTaskDelay / ptd);
   }
 }
 
@@ -258,19 +271,33 @@ void bufferPrint() { // just buffer print func
   Serial.println("");
 }
 
+void noti(void * param) {
+  while (1) {
+    if (notiAct) {
+      strcpy(myData.uuid, "01011010");
+      myData._val = 0; // unlock failed
+      esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send fail data to master esp32
+      notiAct = false;
+    }
+    vTaskDelay(10 / ptd);
+  }
+}
+
 void loop() {
   if (digitalRead(btn)) { // open by btn
-    bool erase_state = false;
-    int erase_timeout = millis();
+    bool write_state = false;
+    int write_timeout = millis();
     while (digitalRead(btn)) {
-      erase_state = false;
-      if (millis() - erase_timeout > 10000) {
-        erase_state = true;
-        Serial.println("erase sequence initiate");
+      write_state = false;
+      if (millis() - write_timeout > 10000) {
+        write_state = true;
+        Serial.println("write sequence initiate");
+        spc = true;
+        notiAct = true;
         break;
       }
     }
-    if (!erase_state) {
+    if (!write_state) {
       myData._val = 1; // open sig
       digitalWrite(led, HIGH);
       esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send open data to master esp32
@@ -282,7 +309,7 @@ void loop() {
       else {
         Serial.println("Error sending the data");
       }
-      delay(5000); // wait for door to lock
+      vTaskDelay(5000 / ptd); // wait for door to lock
     } else  {
       while (1) {
         if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
@@ -291,9 +318,10 @@ void loop() {
         if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
           continue;
         }
-        timeout = millis();
-        WRITE("");
-        state = 0;
+        state = 2;
+        strcpy(writeData, "ku_kod_lnw$482__");
+        RFID_CTRL();
+        spc = false;
 
         //instructs the PICC when in the ACTIVE state to go to a "STOP" state
         mfrc522.PICC_HaltA();
@@ -304,17 +332,19 @@ void loop() {
     }
   }
   if (digitalRead(btn2)) { // open by btn
-    bool write_state = false;
-    int write_timeout = millis();
+    bool erase_state = false;
+    int erase_timeout = millis();
     while (digitalRead(btn2)) {
-      write_state = false;
-      if (millis() - write_timeout > 10000) {
-        write_state = true;
-        Serial.println("write sequence initiate");
+      erase_state = false;
+      if (millis() - erase_timeout > 10000) {
+        erase_state = true;
+        Serial.println("erase sequence initiate");
+        spc = true;
+        notiAct = true;
         break;
       }
     }
-    if (write_state) {
+    if (erase_state) {
       while (1) {
         if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
           continue;
@@ -322,9 +352,10 @@ void loop() {
         if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
           continue;
         }
-        timeout = millis();
-        WRITE("ku_kod_lnw$482__");
-        state = 0;
+        state = 2;
+        memcpy(writeData, startState, 16);
+        RFID_CTRL();
+        spc = false;
 
         //instructs the PICC when in the ACTIVE state to go to a "STOP" state
         mfrc522.PICC_HaltA();
@@ -352,7 +383,7 @@ void loop() {
     else {
       Serial.println("Error sending the data");
     }
-    delay(5000); // wait for door to lock
+    vTaskDelay(5000 / ptd); // wait for door to lock
     memcpy(buffer, startState, sizeof(buffer)); // reset buffer
   } else {
     myData._val = 0; // unlock failed
@@ -366,7 +397,7 @@ void loop() {
     else {
       Serial.println("Error sending the data");
     }
-    delay(3000); // small delay
+    vTaskDelay(3000 / ptd); // small vTaskDelay
   }
   //instructs the PICC when in the ACTIVE state to go to a "STOP" state
   mfrc522.PICC_HaltA();

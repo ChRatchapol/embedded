@@ -132,8 +132,15 @@ int fail_melody[] = {
   NOTE_A4,  20, REST, 100
 };
 
+int noti_melody[] = {
+  NOTE_FS4, 75, REST, 300,
+  NOTE_GS4, 75, REST, 300,
+  NOTE_A4,  75, REST, 300
+};
+
 int _notes = sizeof(_melody) / sizeof(_melody[0]) / 2;
 int fail_notes = sizeof(fail_melody) / sizeof(fail_melody[0]) / 2;
+int noti_notes = sizeof(noti_melody) / sizeof(noti_melody[0]) / 2;
 
 int _wholenotes = (60000 * 4) / _tempo;
 
@@ -148,7 +155,7 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 int state = 0;
 
 typedef struct OLED_BTN_message {
-  char _msg[8]; // [0,0,0,0,0] is placeholder
+  char _msg[8]; 
   int _type; // 0 = NORM, 1 = SIGNUP
 } OLED_BTN_message;
 OLED_BTN_message msg;
@@ -206,12 +213,30 @@ void FAIL_SONG() {
   }
 }
 
+void NOTI_SONG() {
+  for (int thisNote = 0; thisNote < noti_notes * 2; thisNote = thisNote + 2) {
+    divider = noti_melody[thisNote + 1];
+    if (divider > 0) {
+      // regular note, just proceed
+      noteDuration = (_wholenotes) / divider;
+    } else if (divider < 0) {
+      // dotted _notes are represented with negative durations!!
+      noteDuration = (_wholenotes) / abs(divider);
+      noteDuration *= 1.5; // increases the duration in half for dotted notes
+    }
+
+    tone(noti_melody[thisNote], noteDuration);
+  }
+}
+
 void BUZZER() {
   Serial.println("BUZZER");
   if (strcmp(msg._msg, "00000000") == 0) {
     SUCCESS_SONG();
   } else if (strcmp(msg._msg, "11111111") == 0) {
     FAIL_SONG();
+  } else if (strcmp(msg._msg, "01011010") == 0) {
+    NOTI_SONG();
   }
 }
 
