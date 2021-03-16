@@ -322,11 +322,13 @@ void loop() {
         strcpy(writeData, "ku_kod_lnw$482__");
         RFID_CTRL();
         spc = false;
+        notiAct = true;
 
         //instructs the PICC when in the ACTIVE state to go to a "STOP" state
         mfrc522.PICC_HaltA();
         // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
         mfrc522.PCD_StopCrypto1();
+        vTaskDelay(500 / ptd);
         break;
       }
     }
@@ -356,11 +358,13 @@ void loop() {
         memcpy(writeData, startState, 16);
         RFID_CTRL();
         spc = false;
+        notiAct = true;
 
         //instructs the PICC when in the ACTIVE state to go to a "STOP" state
         mfrc522.PICC_HaltA();
         // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
         mfrc522.PCD_StopCrypto1();
+        vTaskDelay(500 / ptd);
         break;
       }
     }
@@ -386,6 +390,7 @@ void loop() {
     vTaskDelay(5000 / ptd); // wait for door to lock
     memcpy(buffer, startState, sizeof(buffer)); // reset buffer
   } else {
+    strcpy(myData.uuid, "00000000");
     myData._val = 0; // unlock failed
     digitalWrite(led, HIGH);
     esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send fail data to master esp32
