@@ -83,6 +83,16 @@ void waitRFID() {
       break;
     }
   }
+  digitalWrite(led, HIGH);
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+  digitalWrite(led, LOW);
+
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
 }
 
 void chk_btn() { // checking btn here
@@ -115,26 +125,24 @@ void chk_btn() { // checking btn here
     }
   }
   if (strcmp(msg._msg, otp) == 0) {
-    strcpy(myData.uuid, "11110000");
     myData._val = 2;
+    waitRFID();
   }
   else {
-    strcpy(myData.uuid, "00001111");
+    strcpy(myData.uuid, "00000000");
     myData._val = 3;
-  }
 
-  digitalWrite(led, HIGH);
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-  digitalWrite(led, LOW);
+    digitalWrite(led, HIGH);
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+    digitalWrite(led, LOW);
 
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
+    if (result == ESP_OK) {
+      Serial.println("Sent with success");
+    }
+    else {
+      Serial.println("Error sending the data");
+    }
   }
-  else {
-    Serial.println("Error sending the data");
-  }
-
-  waitRFID();
 }
 
 
