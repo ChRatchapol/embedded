@@ -40,7 +40,7 @@ int btn = 34; // for open and erase
 int btn2 = 35; // for write
 int state = 0; // 0 = NORM, 1 = READ, 2 = WRITE
 int timeout = millis(); // timeout for all activity
-char uuid[16]; // uuid of the RFID card
+char uuid[8]; // uuid of the RFID card
 bool res; // state ctrl
 byte buffer[SIZE_BUFFER] = {0}; // buffer for read data
 byte writeBuffer[SIZE_BUFFER]; // buffer for write data
@@ -66,9 +66,9 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
   }
   RFID_CTRL(); // execute READ() or WRITE() func
   if (!res) {
-    strcpy(myData.uuid, "0000000000000000"); // fail
+    strcpy(myData.uuid, "0"); // fail
   } else {
-    strcpy(myData.uuid, "1111111111111111"); // success
+    strcpy(myData.uuid, uuid); // success
   }
 
   digitalWrite(led, HIGH);

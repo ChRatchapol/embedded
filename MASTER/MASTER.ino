@@ -21,6 +21,7 @@ const int _size = 2 * JSON_OBJECT_SIZE(5);
 char str[100];
 char recvStr[100];
 char _UUID[8];
+char OTP[8];
 
 bool failed = false;
 int state = 0; // 0 = idle, 1 = waiting for OTP verification, 2 = finishing signup sequence
@@ -71,7 +72,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     msg._type = 0;
     led_blink(2, 50);
   } else if (myData._val == 2) { // button OTP verify successful
-    if (strcmp(myData.uuid, "1111111111111111")) {
+    if (strcmp(myData.uuid, "11111111") == 0) {
       strcpy(msg._msg, "11111111"); // just placeholder
       msg._type = 3; // RFID Read
 
@@ -85,6 +86,11 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
       else {
         Serial.println("Error sending the data");
       }
+    } else {
+      strcpy(_UUID, ""); // no RFID
+      state = 2; // send data back to backend
+      strcpy(msg._msg, "11111111"); // just placeholder
+      msg._type = 0; // normal type
     }
   } else if (myData._val == 3) { // button otp verify failed
     state = 0;
@@ -92,7 +98,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     strcpy(msg._msg, "11111111"); // just placeholder
     msg._type = 2; // tell OLED to show OTP verification fail
   } else if (myData._val == 4) { // RFID UUID recv
-    if (strcmp(myData.uuid, "0000000000000000") == 0) {
+    if (strcmp(myData.uuid, "0") == 0) {
       state = 0;
       failed = true;
       msg._type = 5;
@@ -103,7 +109,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
       msg._type = 0; // normal type
     }
   } else if (myData._val == 5) { // RFID Write finish
-    if (strcmp(myData.uuid, "0000000000000000") == 0) {
+    if (strcmp(myData.uuid, "0") == 0) {
       failed = true;
       msg._type = 5;
     } else {
@@ -145,6 +151,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
     int _type_ = JSONRecv["type"];
     if ((_type_ == 1) && (state == 0)) { // start signup sequence
       strcpy(msg._msg, JSONRecv["OTP"]);
+      strcpy(OTP, JSONRecv["OTP"]);
       msg._type = 1;
 
       digitalWrite(led, HIGH);
@@ -301,7 +308,7 @@ void logging() { // func to send data through i2c
   } else if (state == 2) { // send signup data to backend (only if in signup finishing state)
     JSONSend["type"] = 1;
     JSONSend["uuid"] = _UUID;
-    JSONSend["OTP"] = msg._msg;
+    JSONSend["OTP"] = OTP;
   } else {
     if ((myData._val) && (state == 0)) { // send normal logging when open the door
       JSONSend["type"] = 2;
