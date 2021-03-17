@@ -38,12 +38,12 @@ uint8_t broadcastAddressRFID[] = {0xa4, 0xcf, 0x12, 0x8f, 0x88, 0x44}; // RFID M
 
 typedef struct reg_message {
   int _val; // 0 = invalid, 1 = valid, 2 = button OTP verify successful, 3 = button OTP verify failed, 4 = RFID UUID recv, 5 = RFID write confirm
-  char uuid[8]; // for RFID uuid, if _val is 2, 4, 5 then this will be "11111111..." for yes and "00000000..." for no.
+  char uuid[9]; // for RFID uuid, if _val is 2, 4, 5 then this will be "11111111..." for yes and "00000000..." for no.
 } reg_message;
 reg_message myData;
 
 typedef struct internal_message {
-  char _msg[8]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
+  char _msg[9]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
   int _type; // 0 = NORM, 1 = SIGNUP, 2 = OTP FAIL, 3 = READ RFID, 4 = WRITE RFID, 5 = RFID FAIL
 } internal_message;
 internal_message msg;
@@ -64,7 +64,9 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     OPEN(); // open
     led_blink(5, 100);
   } else if (myData._val == 0) { // fail sig
+    Serial.println(myData.uuid);
     if (strcmp(myData.uuid, "01011010") == 0) {
+      Serial.println("Here");
       strcpy(msg._msg, myData.uuid);
     } else {
       strcpy(msg._msg, "11111111"); // tell OLED to show fail sequence on screen
@@ -72,7 +74,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     msg._type = 0;
     led_blink(2, 50);
   } else if (myData._val == 2) { // button OTP verify successful
-    if (strcmp(myData.uuid, "11111111") == 0) {
+    if (strcmp(myData.uuid, "1111111") == 0) {
       strcpy(msg._msg, "11111111"); // just placeholder
       msg._type = 3; // RFID Read
 
@@ -143,6 +145,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
   char x = WireSlave.read();
   recvStr[i] = x;
 
+
   DeserializationError err = deserializeJson(JSONRecv, recvStr);
   if (err) {
     Serial.print(F("deserializeJson() failed with code "));
@@ -155,6 +158,17 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       msg._type = 1;
 
       digitalWrite(led, HIGH);
+      esp_err_t result2 = esp_now_send(broadcastAddressBTN, (uint8_t *) &msg, sizeof(msg)); // send OTP to button
+      digitalWrite(led, LOW);
+
+      if (result2 == ESP_OK) {
+        Serial.println("Sent with success");
+      }
+      else {
+        Serial.println("Error sending the data");
+      }
+
+      digitalWrite(led, HIGH);
       esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
       digitalWrite(led, LOW);
 
@@ -165,16 +179,6 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
         Serial.println("Error sending the data");
       }
 
-      digitalWrite(led, HIGH);
-      esp_err_t result2 = esp_now_send(broadcastAddressBTN, (uint8_t *) &msg, sizeof(msg)); // send OTP to button
-      digitalWrite(led, LOW);
-
-      if (result2 == ESP_OK) {
-        Serial.println("Sent with success");
-      }
-      else {
-        Serial.println("Error sending the data");
-      }
       state = 1; // wait for OTP verification
 
     } else if ((_type_ == 3) && (state == 0)) { // unlock from LINE
@@ -182,7 +186,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       logging();
       OPEN(); // open
 
-      strcpy(msg._msg, "11111111");
+      strcpy(msg._msg, "00000000");
       msg._type = 0;
 
       digitalWrite(led, HIGH);
@@ -225,6 +229,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       }
     } else {
       failed = true; // Well, It's a fail state.
+      state = 0;
     }
   }
 }
@@ -237,6 +242,7 @@ void requestEvent() { // execute on rqst i2c packet
   if (unlockFrom == 1) {
     unlockFrom = 0;
   }
+  logging();
 }
 
 void setup() {
@@ -288,7 +294,7 @@ void setup() {
 
   Serial.printf("Slave joined I2C bus with addr #%d\n", I2C_SLAVE_ADDR);
 
-  xTaskCreatePinnedToCore(i2c_sending, "i2c send", 1024, NULL, 1, &i2cTask, 0); // seperate core for i2c sending
+  xTaskCreatePinnedToCore(i2c_sending, "i2c send", 32 * 1024, NULL, 1, &i2cTask, 0); // seperate core for i2c sending
 }
 
 void led_blink(int times, int _delay) { // to blink led
@@ -310,7 +316,7 @@ void logging() { // func to send data through i2c
     JSONSend["uuid"] = _UUID;
     JSONSend["OTP"] = OTP;
   } else {
-    if ((myData._val) && (state == 0)) { // send normal logging when open the door
+    if ((myData._val) && (state == 0) || (unlockFrom == 1) && (state == 0)) { // send normal logging when open the door
       JSONSend["type"] = 2;
       JSONSend["uuid"] = _UUID;
       if (unlockFrom == 0) {
@@ -318,11 +324,12 @@ void logging() { // func to send data through i2c
       } else if (unlockFrom == 1) {
         JSONSend["from"] = "LINE";
       }
-    } else if (state == 0) { // send idle data
+    } else if (state == 0 || state == 1) { // send idle data
       JSONSend["type"] = 0;
     }
   }
   serializeJson(JSONSend, str);
+  Serial.println(str);
 }
 
 void i2c_sending(void* param) { // always polling request from i2c master

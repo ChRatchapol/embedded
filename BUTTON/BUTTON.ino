@@ -1,5 +1,8 @@
 #include <esp_now.h>
 #include <WiFi.h>
+#include <string>
+
+#define ptd portTICK_PERIOD_MS
 
 uint8_t broadcastAddress[] = {0x3c, 0x61, 0x05, 0x03, 0xb4, 0x4c}; // master MAC
 
@@ -10,7 +13,7 @@ typedef struct reg_message {
 reg_message myData;
 
 typedef struct internal_message {
-  char _msg[8]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
+  char _msg[9]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
   int _type; // 0 = NORM, 1 = SIGNUP, 2 = OTP FAIL, 3 = READ RFID, 4 = WRITE RFID, 5 = RFID FAIL
 } internal_message;
 internal_message msg;
@@ -19,13 +22,13 @@ int led = 2; // for indicate
 int red = 34 , yellow = 35 , blue = 32 , green = 33; // for 4 button
 int timeout = millis();
 bool timeout_state = false;
+TaskHandle_t chkBtnTask = NULL;
+TaskHandle_t waitRFIDTask = NULL;
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // execute on send
   if (status == ESP_NOW_SEND_SUCCESS) { // for indicate
-    //    Serial.println("Delivery Success");
     led_blink(5, 100);
   } else {
-    //    Serial.println("Delivery Fail");
     led_blink(10, 50);
   }
 }
@@ -33,12 +36,11 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // exec
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   memcpy(&msg, incomingData, sizeof(msg));
   if (msg._type == 1) {
-    chk_btn(); // check OTP
+    xTaskCreatePinnedToCore(chk_btn, "chk btn", 1024, NULL, 1, &chkBtnTask, 0);
     led_blink(5, 100);
   } else {
     led_blink(2, 50);
   }
-  Serial.println(msg._type);
 }
 
 void setup() {
@@ -70,7 +72,7 @@ void setup() {
   }
 }
 
-void waitRFID() {
+void waitRFID(void * param) {
   timeout = millis();
   while (millis() - timeout <= 60000) {
     if (!digitalRead(green)) {
@@ -82,6 +84,7 @@ void waitRFID() {
       strcpy(myData.uuid, "0000000");
       break;
     }
+    vTaskDelay(10 / ptd);
   }
   digitalWrite(led, HIGH);
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
@@ -93,10 +96,15 @@ void waitRFID() {
   else {
     Serial.println("Error sending the data");
   }
+  vTaskDelete(NULL);
 }
 
-void chk_btn() { // checking btn here
-  char otp[8];
+void chk_btn(void * param) { // checking btn here
+  std::string otp = "";
+  std::string cmp = "";
+  for (int index = 0; index < 8; index++) {
+    cmp = cmp + msg._msg[index];
+  }
   int i = 0;
   timeout = millis();
   while (millis() - timeout <= 60000) {
@@ -104,31 +112,45 @@ void chk_btn() { // checking btn here
       break;
     }
     if (!digitalRead(red)) {
-      otp[i] = 'r';
-      Serial.println(otp);
+      otp = otp + 'R';
+//      Serial.println(otp.c_str());
       i++;
+      while (!digitalRead(red)) {
+        vTaskDelay(1 / ptd);
+      }
     }
     else if (!digitalRead(yellow)) {
-      otp[i] = 'y';
-      Serial.println(otp);
+      otp = otp + 'Y';
+//      Serial.println(otp.c_str());
       i++;
+      while (!digitalRead(yellow)) {
+        vTaskDelay(1 / ptd);
+      }
     }
     else if (!digitalRead(blue)) {
-      otp[i] = 'b';
-      Serial.println(otp);
+      otp = otp + 'B';
+//      Serial.println(otp.c_str());
       i++;
+      while (!digitalRead(blue)) {
+        vTaskDelay(1 / ptd);
+      }
     }
     else if (!digitalRead(green)) {
-      otp[i] = 'g';
-      Serial.println(otp);
+      otp = otp + 'G';
+//      Serial.println(otp.c_str());
       i++;
+      while (!digitalRead(green)) {
+        vTaskDelay(1 / ptd);
+      }
     }
+    vTaskDelay(10 / ptd);
   }
-  if (strcmp(msg._msg, otp) == 0) {
+  if (cmp.compare(otp) == 0) {
     myData._val = 2;
-    waitRFID();
-  }
-  else {
+    Serial.println("verify!");
+    xTaskCreatePinnedToCore(waitRFID, "wait RFID", 1024, NULL, 1, &waitRFIDTask, 0);
+  } else {
+    Serial.println("invalid otp!");
     strcpy(myData.uuid, "00000000");
     myData._val = 3;
 
@@ -143,15 +165,16 @@ void chk_btn() { // checking btn here
       Serial.println("Error sending the data");
     }
   }
+  vTaskDelete(NULL);
 }
 
 
-void led_blink(int times, int _delay) {
+void led_blink(int times, int _vTaskDelay) {
   for (int i = 0; i < times; i++) {
     digitalWrite(led, HIGH);
-    delay(_delay);
+    vTaskDelay(_vTaskDelay / ptd);
     digitalWrite(led, LOW);
-    delay(_delay);
+    vTaskDelay(_vTaskDelay / ptd);
   }
 }
 

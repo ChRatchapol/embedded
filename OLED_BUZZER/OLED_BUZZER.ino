@@ -106,6 +106,7 @@ int fastTime_ = millis();
 int timeout = millis();
 bool timeout_state = false;
 String oled_msg;
+bool signupState = false;
 
 int _tempo = 25;
 
@@ -155,7 +156,7 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 int state = 0;
 
 typedef struct OLED_BTN_message {
-  char _msg[8]; 
+  char _msg[9];
   int _type; // 0 = NORM, 1 = SIGNUP
 } OLED_BTN_message;
 OLED_BTN_message msg;
@@ -242,12 +243,18 @@ void BUZZER() {
 
 void SIGNUP() {
   Serial.println(msg._msg);
-  char tmp[11];
-  strcpy(tmp, "  OTP is   ");
-  char tmp2[1];
-  strcpy(tmp2, " ");
-  oled_msg = strcat(strcat(tmp, msg._msg), tmp2);
+  char tmp[11] = {' ', ' ', 'O', 'T', 'P', ' ', 'i', 's', ' ', ' ', ' '};
+  String _msg_;
+  for (int index = 0 ; index < 11; index++) {
+    _msg_ = _msg_ + tmp[index];
+  }
+  for (int index = 0 ; index < 8; index++) {
+    _msg_ = _msg_ + msg._msg[index];
+  }
+  _msg_ = _msg_ + ' ';
+  oled_msg = _msg_;
   state = 1;
+  NOTI_SONG();
 }
 
 void OTP_FAIL() {
@@ -261,6 +268,7 @@ void RFID() {
   Serial.println("RFID");
   oled_msg = "Place your   RFID   ";
   state = 1;
+  NOTI_SONG();
 }
 
 void RFID_FAIL() {
@@ -281,16 +289,26 @@ void led_blink(int times, int _delay) {
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   memcpy(&msg, incomingData, sizeof(msg));
+  Serial.println(msg._type);
   if (msg._type == 1) {
+    signupState = true;
     SIGNUP();
   } else if (msg._type == 0) {
+    signupState = false;
+    oled_msg = "";
+    timeout_state =  false;
     OLED();
     BUZZER();
   } else if (msg._type == 2) {
+    signupState = false;
+    oled_msg = "";
+    timeout_state =  false;
     OTP_FAIL();
   } else if ((msg._type == 3) || (msg._type == 4)) {
+    oled_msg = "";
+    timeout_state =  false;
     RFID();
-  } else if (msg._type == 5) {
+  } else if (msg._type == 5 && !signupState) {
     RFID_FAIL();
   }
   timeout = millis();
@@ -329,9 +347,11 @@ void loop() {
     fastBlink_ = !fastBlink_;
     fastTime_ = millis();
   }
-  if (millis() - timeout >= 3500) {
-    oled_msg = "";
-    timeout_state =  false;
+  if (!signupState) {
+    if (millis() - timeout >= 3500) {
+      oled_msg = "";
+      timeout_state =  false;
+    }
   }
   display.clearDisplay();
   display.setTextSize(2);
@@ -354,4 +374,6 @@ void loop() {
     display.drawCircle(3, 64 - 3 - 1, 2, WHITE);
   }
   display.display();
+  //  Serial.print("Here <<<< ");
+  //  Serial.println(oled_msg);
 }
