@@ -347,7 +347,8 @@ void OPEN() { // func that unlock the lock
   }
 }
 
-void loop() { // control timeout
+void loop() { // control
+//  Serial.println(state);
   if (!unlock_state) { // if the door is not unlocked, reset timeout
     timeout = millis();
   } else if (unlock_state && (millis() - timeout >= 5000)) { // else if the door is unlocked and 5s pass, lock the door
