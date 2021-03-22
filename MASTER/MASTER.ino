@@ -27,7 +27,7 @@ bool failed = false;
 int state = 0; // 0 = idle, 1 = waiting for OTP verification, 2 = finishing signup sequence
 int timeout = millis(); // unlock timeout
 bool unlock_state = false;
-int unlockFrom = 0; // 0 = RFID, 1 = LINE
+int unlockFrom = 0; // 0 = RFID, 1 = LINE, 2 = Button
 
 StaticJsonDocument<_size> JSONRecv;
 StaticJsonDocument<_size> JSONSend;
@@ -58,6 +58,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // exec
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // execute on recv esp-now
   memcpy(&myData, incomingData, sizeof(myData));
+
   if (myData._val == 1) { // open sig
     strcpy(msg._msg, "00000000"); // tell OLED to show open sequence on screen
     msg._type = 0;
@@ -66,13 +67,12 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
   } else if (myData._val == 0) { // fail sig
     Serial.println(myData.uuid);
     if (strcmp(myData.uuid, "01011010") == 0) {
-      Serial.println("Here");
       strcpy(msg._msg, myData.uuid);
     } else {
       strcpy(msg._msg, "11111111"); // tell OLED to show fail sequence on screen
+      led_blink(2, 50);
     }
     msg._type = 0;
-    led_blink(2, 50);
   } else if (myData._val == 2) { // button OTP verify successful
     if (strcmp(myData.uuid, "1111111") == 0) {
       strcpy(msg._msg, "11111111"); // just placeholder
@@ -227,6 +227,10 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       else {
         Serial.println("Error sending the data");
       }
+    } else if (_type_ == 0) {
+      myData._val = 255; // idle
+      unlockFrom = 0;
+      logging();
     } else {
       failed = true; // Well, It's a fail state.
       state = 0;
@@ -239,9 +243,7 @@ void requestEvent() { // execute on rqst i2c packet
   for (int i = 0; i < (70 - strlen(str)); i++) { // padding
     WireSlave.write(0x00);
   }
-  if (unlockFrom == 1) {
-    unlockFrom = 0;
-  }
+  unlockFrom = 0;
   logging();
 }
 
@@ -315,14 +317,17 @@ void logging() { // func to send data through i2c
     JSONSend["type"] = 1;
     JSONSend["uuid"] = _UUID;
     JSONSend["OTP"] = OTP;
+    state = 0;
   } else {
-    if ((myData._val) && (state == 0) || (unlockFrom == 1) && (state == 0)) { // send normal logging when open the door
+    if ((myData._val == 1) && (state == 0) || (unlockFrom == 1) && (state == 0)) { // send normal logging when open the door
       JSONSend["type"] = 2;
       JSONSend["uuid"] = _UUID;
       if (unlockFrom == 0) {
         JSONSend["from"] = "RFID";
       } else if (unlockFrom == 1) {
         JSONSend["from"] = "LINE";
+      } else if (unlockFrom == 2) {
+        JSONSend["from"] = "Bttn";
       }
     } else if (state == 0 || state == 1) { // send idle data
       JSONSend["type"] = 0;
@@ -348,7 +353,6 @@ void OPEN() { // func that unlock the lock
 }
 
 void loop() { // control
-//  Serial.println(state);
   if (!unlock_state) { // if the door is not unlocked, reset timeout
     timeout = millis();
   } else if (unlock_state && (millis() - timeout >= 5000)) { // else if the door is unlocked and 5s pass, lock the door
