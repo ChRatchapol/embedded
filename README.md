@@ -44,7 +44,7 @@
 
 นายรัชพล จันทรโชติ    FB: [Ratchapol Chantarachote](https://www.facebook.com/ch.ratchapol) โทรศัพท์: 0817126100    
 นายอิทธิกร ปุญสิริ      FB: [Aitthikorn Poonsiri](https://www.facebook.com/gorn.aitthikorn/) โทรศัพท์: 0918549003
-นาย
+นายนนท์ วิทวัสการเวช  FB: [นนท์ไง](https://www.facebook.com/Non.Nontosan) โทรศัพท์: 0890888168
 นายภัฎสร์ชนน  ศรีรักษา FB: [Aom Patschanon Sriraksa](https://www.facebook.com/AomPS.SKR.20TH) โทรศัพท์: 0970616136
 
 ---
