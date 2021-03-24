@@ -42,9 +42,9 @@
 ---
 พวกเราเป็นหนึ่งในทีมทำงานของชุมนุมนิสิตวิศวกรรมคอมพิวเตอร์ ปีการศึกษา 2563 โดยเราทำงานนี้เป็นโปรเจคของวิชา Embedded System จึงนำระบบนี้มาติดตั้งเพื่อใช้จริงด้วย ซึ่งถ้าหากมีปัญหา หรือต้องการปรึกษา สามารถติดต่อเราได้ตามด้านล่าง
 
-นายรัชพล จันทรโชติ FB: [Ratchapol Chantarachote](https://www.facebook.com/ch.ratchapol) โทรศัพท์: 0817126100    
-นายอิทธิกร ปุญสิริ FB: [Aitthikorn Poonsiri](https://www.facebook.com/gorn.aitthikorn/) โทรศัพท์: 0918549003
-นาย    
+นายรัชพล จันทรโชติ    FB: [Ratchapol Chantarachote](https://www.facebook.com/ch.ratchapol) โทรศัพท์: 0817126100    
+นายอิทธิกร ปุญสิริ      FB: [Aitthikorn Poonsiri](https://www.facebook.com/gorn.aitthikorn/) โทรศัพท์: 0918549003
+นาย
 นายภัฎสร์ชนน  ศรีรักษา FB: [Aom Patschanon Sriraksa](https://www.facebook.com/AomPS.SKR.20TH) โทรศัพท์: 0970616136
 
 ---
