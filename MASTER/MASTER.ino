@@ -75,26 +75,34 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     }
     msg._type = 0;
   } else if (myData._val == 2) { // button OTP verify successful
-    if (strcmp(myData.uuid, "1111111") == 0) {
-      strcpy(msg._msg, "11111111"); // just placeholder
-      msg._type = 3; // RFID Read
+    //    if (strcmp(myData.uuid, "1111111") == 0) {
+    //      strcpy(msg._msg, "11111111"); // just placeholder
+    //      msg._type = 3; // RFID Read
+    //
+    //      digitalWrite(led, HIGH);
+    //      esp_err_t result = esp_now_send(broadcastAddressRFID, (uint8_t *) &msg, sizeof(msg)); // tell RFID to read uuid and send back
+    //      digitalWrite(led, LOW);
+    //
+    //      if (result == ESP_OK) {
+    //        Serial.println("Sent with success");
+    //      }
+    //      else {
+    //        Serial.println("Error sending the data");
+    //      }
+    //    } else {
+    //      strcpy(_UUID, ""); // no RFID
+    //      state = 2; // send data back to backend
+    //      strcpy(msg._msg, "01011010"); // just placeholder
+    //      msg._type = 0; // normal type
+    //    }
 
-      digitalWrite(led, HIGH);
-      esp_err_t result = esp_now_send(broadcastAddressRFID, (uint8_t *) &msg, sizeof(msg)); // tell RFID to read uuid and send back
-      digitalWrite(led, LOW);
-
-      if (result == ESP_OK) {
-        Serial.println("Sent with success");
-      }
-      else {
-        Serial.println("Error sending the data");
-      }
-    } else {
-      strcpy(_UUID, ""); // no RFID
-      state = 2; // send data back to backend
-      strcpy(msg._msg, "01011010"); // just placeholder
-      msg._type = 0; // normal type
-    }
+    // this section is only for demo
+    strcpy(_UUID, ""); // no RFID
+    state = 2; // send data back to backend
+    strcpy(msg._msg, "01011010"); // just placeholder
+    msg._type = 0; // normal type
+    // end of demo section
+    
   } else if (myData._val == 3) { // button otp verify failed
     state = 0;
     failed = true;
@@ -362,38 +370,38 @@ void loop() { // control
     digitalWrite(sig, HIGH);
     unlock_state = false;
   }
-//  if (!digitalRead(btn)) {
-//    delay(100);
-//    Serial.println("Here");
-//    strcpy(msg._msg, "RRGGBBYY");
-//    strcpy(OTP, "RRGGBBYY");
-//    msg._type = 1;
-//
-//    digitalWrite(led, HIGH);
-//    esp_err_t result2 = esp_now_send(broadcastAddressBTN, (uint8_t *) &msg, sizeof(msg)); // send OTP to button
-//    digitalWrite(led, LOW);
-//
-//    if (result2 == ESP_OK) {
-//      Serial.println("Sent with success");
-//    }
-//    else {
-//      Serial.println("Error sending the data");
-//    }
-//
-//    digitalWrite(led, HIGH);
-//    esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
-//    digitalWrite(led, LOW);
-//
-//    if (result == ESP_OK) {
-//      Serial.println("Sent with success");
-//    }
-//    else {
-//      Serial.println("Error sending the data");
-//    }
-//
-//    state = 1; // wait for OTP verification
-//    while (!digitalRead(btn)) {
-//      delay(100);
-//    }
-//  }
+  //  if (!digitalRead(btn)) {
+  //    delay(100);
+  //    Serial.println("Here");
+  //    strcpy(msg._msg, "RRGGBBYY");
+  //    strcpy(OTP, "RRGGBBYY");
+  //    msg._type = 1;
+  //
+  //    digitalWrite(led, HIGH);
+  //    esp_err_t result2 = esp_now_send(broadcastAddressBTN, (uint8_t *) &msg, sizeof(msg)); // send OTP to button
+  //    digitalWrite(led, LOW);
+  //
+  //    if (result2 == ESP_OK) {
+  //      Serial.println("Sent with success");
+  //    }
+  //    else {
+  //      Serial.println("Error sending the data");
+  //    }
+  //
+  //    digitalWrite(led, HIGH);
+  //    esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
+  //    digitalWrite(led, LOW);
+  //
+  //    if (result == ESP_OK) {
+  //      Serial.println("Sent with success");
+  //    }
+  //    else {
+  //      Serial.println("Error sending the data");
+  //    }
+  //
+  //    state = 1; // wait for OTP verification
+  //    while (!digitalRead(btn)) {
+  //      delay(100);
+  //    }
+  //  }
 }
