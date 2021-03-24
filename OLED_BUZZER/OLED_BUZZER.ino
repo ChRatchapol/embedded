@@ -174,11 +174,13 @@ void OLED() {
     Serial.println("Open");
     oled_msg = " Unlocked ";
     state = 1;
-  }
-  else if (strcmp(msg._msg, "11111111") == 0) {
+  } else if (strcmp(msg._msg, "11111111") == 0) {
     Serial.println("Cannot open");
     oled_msg = "  Unlock    Failed  ";
     state = 0;
+  } else if (strcmp(msg._msg, "01011010") == 0) {
+    oled_msg = "  SIGNUP     FIN.   ";
+    state = 1;
   }
 }
 

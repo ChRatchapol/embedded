@@ -4,7 +4,7 @@
 
 #define ptd portTICK_PERIOD_MS
 
-uint8_t broadcastAddress[] = {0x3c, 0x61, 0x05, 0x03, 0xb4, 0x4c}; // master MAC
+uint8_t broadcastAddress[] = {0x24, 0x6f, 0x28, 0x50, 0xc0, 0xa0}; // master MAC // 24:6F:28:50:C0:A0
 
 typedef struct reg_message {
   int _val; // 0 = invalid, 1 = valid, 2 = button OTP verify successful, 3 = button OTP verify failed, 4 = RFID UUID recv, 5 = RFID write confirm
@@ -22,8 +22,14 @@ int led = 2; // for indicate
 int red = 34 , yellow = 35 , blue = 32 , green = 33; // for 4 button
 int timeout = millis();
 bool timeout_state = false;
+
 TaskHandle_t chkBtnTask = NULL;
 TaskHandle_t waitRFIDTask = NULL;
+
+int stateRed = 0;
+int stateBlu = 0;
+int stateYlw = 0;
+int stateGrn = 0;
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // execute on send
   if (status == ESP_NOW_SEND_SUCCESS) { // for indicate
@@ -46,10 +52,10 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 void setup() {
   Serial.begin(115200);
   pinMode(led, OUTPUT);
-  pinMode(red, INPUT_PULLUP);
+  pinMode(red,    INPUT_PULLUP);
   pinMode(yellow, INPUT_PULLUP);
-  pinMode(blue, INPUT_PULLUP);
-  pinMode(green, INPUT_PULLUP);
+  pinMode(blue,   INPUT_PULLUP);
+  pinMode(green,  INPUT_PULLUP);
 
   WiFi.mode(WIFI_STA);
 
@@ -74,15 +80,86 @@ void setup() {
 
 void waitRFID(void * param) {
   timeout = millis();
+  int count;
   while (millis() - timeout <= 60000) {
     if (!digitalRead(green)) {
-      myData._val = 2;
-      strcpy(myData.uuid, "1111111");
-      break;
+      stateGrn = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateGrn = 1;
+          break;
+        } else {
+          if (digitalRead(green)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+      if (stateGrn) {
+        myData._val = 2;
+        strcpy(myData.uuid, "1111111");
+        break;
+      }
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateGrn = 0;
+          break;
+        } else {
+          if (!digitalRead(green)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
     } else if (!digitalRead(red)) {
-      myData._val = 2;
-      strcpy(myData.uuid, "0000000");
-      break;
+      stateRed = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateRed = 1;
+          break;
+        } else {
+          if (digitalRead(red)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+      if (stateRed) {
+        myData._val = 2;
+        strcpy(myData.uuid, "0000000");
+        break;
+      }
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateRed = 0;
+          break;
+        } else {
+          if (!digitalRead(red)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
     }
     vTaskDelay(10 / ptd);
   }
@@ -111,36 +188,162 @@ void chk_btn(void * param) { // checking btn here
     if (i == 8) {
       break;
     }
+    int count = 200;
     if (!digitalRead(red)) {
-      otp = otp + 'R';
-//      Serial.println(otp.c_str());
-      i++;
-      while (!digitalRead(red)) {
-        vTaskDelay(1 / ptd);
+      stateRed = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateRed = 1;
+          break;
+        } else {
+          if (digitalRead(red)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
       }
-    }
-    else if (!digitalRead(yellow)) {
-      otp = otp + 'Y';
-//      Serial.println(otp.c_str());
-      i++;
-      while (!digitalRead(yellow)) {
-        vTaskDelay(1 / ptd);
+      if (stateRed) {
+        otp = otp + 'R';
+        Serial.println(otp.c_str());
+        i++;
       }
-    }
-    else if (!digitalRead(blue)) {
-      otp = otp + 'B';
-//      Serial.println(otp.c_str());
-      i++;
-      while (!digitalRead(blue)) {
-        vTaskDelay(1 / ptd);
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateRed = 0;
+          break;
+        } else {
+          if (!digitalRead(red)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
       }
-    }
-    else if (!digitalRead(green)) {
-      otp = otp + 'G';
-//      Serial.println(otp.c_str());
-      i++;
-      while (!digitalRead(green)) {
-        vTaskDelay(1 / ptd);
+    } else if (!digitalRead(yellow)) {
+      stateYlw = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateYlw = 1;
+          break;
+        } else {
+          if (digitalRead(yellow)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+      if (stateYlw) {
+        otp = otp + 'Y';
+        Serial.println(otp.c_str());
+        i++;
+      }
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateYlw = 0;
+          break;
+        } else {
+          if (!digitalRead(yellow)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+    } else if (!digitalRead(blue)) {
+      stateBlu = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateBlu = 1;
+          break;
+        } else {
+          if (digitalRead(blue)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+      if (stateBlu) {
+        otp = otp + 'B';
+        Serial.println(otp.c_str());
+        i++;
+      }
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateBlu = 0;
+          break;
+        } else {
+          if (!digitalRead(blue)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+    } else if (!digitalRead(green)) {
+      stateGrn = 0;
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateGrn = 1;
+          break;
+        } else {
+          if (digitalRead(green)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
+      }
+      if (stateGrn) {
+        otp = otp + 'G';
+        Serial.println(otp.c_str());
+        i++;
+      }
+      count = 70;
+      while (1) {
+        count--;
+        if (count <= 0) {
+          stateBlu = 0;
+          break;
+        } else {
+          if (!digitalRead(green)) {
+            count++;
+            if (count >= 140) {
+              break;
+            }
+          }
+          delay(1);
+        }
       }
     }
     vTaskDelay(10 / ptd);

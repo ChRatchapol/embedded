@@ -13,6 +13,7 @@
 
 #define led 2 // for indicate
 #define sig 23 // for relay
+#define btn 19 // for debug
 
 TaskHandle_t i2cTask = NULL;
 
@@ -91,7 +92,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     } else {
       strcpy(_UUID, ""); // no RFID
       state = 2; // send data back to backend
-      strcpy(msg._msg, "11111111"); // just placeholder
+      strcpy(msg._msg, "01011010"); // just placeholder
       msg._type = 0; // normal type
     }
   } else if (myData._val == 3) { // button otp verify failed
@@ -100,6 +101,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     strcpy(msg._msg, "11111111"); // just placeholder
     msg._type = 2; // tell OLED to show OTP verification fail
   } else if (myData._val == 4) { // RFID UUID recv
+    Serial.println(myData.uuid);
     if (strcmp(myData.uuid, "0") == 0) {
       state = 0;
       failed = true;
@@ -107,7 +109,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     } else {
       strcpy(_UUID, myData.uuid);
       state = 2; // send data to backend
-      strcpy(msg._msg, "11111111"); // just placeholder
+      strcpy(msg._msg, "01011010"); // just placeholder
       msg._type = 0; // normal type
     }
   } else if (myData._val == 5) { // RFID Write finish
@@ -251,6 +253,7 @@ void setup() {
   Serial.begin(115200); // start serial
   pinMode(led, OUTPUT);
   pinMode(sig, OUTPUT);
+  pinMode(btn, INPUT_PULLUP);
   digitalWrite(sig, HIGH);
 
   WiFi.mode(WIFI_STA); // for esp-now
@@ -359,4 +362,38 @@ void loop() { // control
     digitalWrite(sig, HIGH);
     unlock_state = false;
   }
+//  if (!digitalRead(btn)) {
+//    delay(100);
+//    Serial.println("Here");
+//    strcpy(msg._msg, "RRGGBBYY");
+//    strcpy(OTP, "RRGGBBYY");
+//    msg._type = 1;
+//
+//    digitalWrite(led, HIGH);
+//    esp_err_t result2 = esp_now_send(broadcastAddressBTN, (uint8_t *) &msg, sizeof(msg)); // send OTP to button
+//    digitalWrite(led, LOW);
+//
+//    if (result2 == ESP_OK) {
+//      Serial.println("Sent with success");
+//    }
+//    else {
+//      Serial.println("Error sending the data");
+//    }
+//
+//    digitalWrite(led, HIGH);
+//    esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
+//    digitalWrite(led, LOW);
+//
+//    if (result == ESP_OK) {
+//      Serial.println("Sent with success");
+//    }
+//    else {
+//      Serial.println("Error sending the data");
+//    }
+//
+//    state = 1; // wait for OTP verification
+//    while (!digitalRead(btn)) {
+//      delay(100);
+//    }
+//  }
 }

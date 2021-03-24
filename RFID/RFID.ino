@@ -19,7 +19,7 @@ MFRC522::StatusCode status;
 // Defined pins to module RC522
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-uint8_t broadcastAddress[] = {0x3c, 0x61, 0x05, 0x03, 0xb4, 0x4c}; // master MAC
+uint8_t broadcastAddress[] = {0x24, 0x6f, 0x28, 0x50, 0xc0, 0xa0}; // master MAC
 
 TaskHandle_t notiTask = NULL;
 
@@ -59,17 +59,22 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // exec
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // execute on recv esp-now
   memcpy(&msg, incomingData, sizeof(msg));
+  Serial.print("type: ");
+  Serial.println(msg._type);
   if (msg._type == 3) { // read RFID for signup
     state = 1;
   } else if (msg._type == 4) { // write RFID for signup
     state = 2;
   }
+  Serial.println(state);
   RFID_CTRL(); // execute READ() or WRITE() func
+  Serial.println("after READ or WRITE");
   if (!res) {
     strcpy(myData.uuid, "0"); // fail
   } else {
     strcpy(myData.uuid, uuid); // success
   }
+  Serial.println("Sent!");
 
   digitalWrite(led, HIGH);
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
