@@ -30,7 +30,7 @@ typedef struct reg_message {
 reg_message myData;
 
 typedef struct internal_message {
-  char _msg[8]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
+  char _msg[9]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
   int _type; // 0 = NORM, 1 = SIGNUP, 2 = OTP FAIL, 3 = READ RFID, 4 = WRITE RFID
 } internal_message;
 internal_message msg;
@@ -59,18 +59,15 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { // exec
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // execute on recv esp-now
   memcpy(&msg, incomingData, sizeof(msg));
-  Serial.print("type: ");
   Serial.println(msg._type);
-  if (msg._type == 3) {
+  if (msg._type == 1) {
     state = 1;
   }
-  RFID_CTRL(); // execute READ() or WRITE() func
 }
 
 void READ() { // read key and uuid of the RFID card
-  myData._val = 4;
   while (millis() - timeout <= 60000) {
-
+    Serial.println("in read");
     //prints the technical details of the card/tag
     mfrc522.PICC_DumpDetailsToSerial(&(mfrc522.uid));
     memcpy(&uuid, mfrc522.uid.uidByte, sizeof(uuid));
@@ -107,27 +104,9 @@ void READ() { // read key and uuid of the RFID card
       }
     }
   }
-  if (!res) {
-    strcpy(myData.uuid, "0"); // fail
-  } else {
-    strcpy(myData.uuid, uuid); // success
-  }
-  Serial.println("Sent!");
-
-  digitalWrite(led, HIGH);
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
-  digitalWrite(led, LOW);
-
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
-  }
 }
 
 void WRITE(char cardKey[16]) { // write key and uuid of the RFID card
-  myData._val = 5;
   memcpy(&writeBuffer, cardKey, 16); // default key
   while (millis() - timeout <= 60000) {
 
@@ -170,12 +149,32 @@ void WRITE(char cardKey[16]) { // write key and uuid of the RFID card
       break;
     }
   }
+}
+
+void RFID_CTRL() { // signup ctrl func
+  timeout = millis();
+  READ();
+
   if (!res) {
     strcpy(myData.uuid, "0"); // fail
   } else {
-    strcpy(myData.uuid, uuid); // success
+    //    memcpy(&myData.uuid, uuid, sizeof(uuid)); // success
+    char res_[9];
+    int index = 0;
+    for (byte i = 0; i < sizeof(uuid); i++) {
+      res_[index] = "0123456789ABCDEF"[uuid[i] / 16];
+      res_[index + 1] = "0123456789ABCDEF"[uuid[i] % 16];
+      index += 2;
+    }
+    res_[8] = '\0';
+    strcpy(myData.uuid, res_);
   }
-  Serial.println("Sent!");
+
+  Serial.println("Reading RFID UUID!");
+  Serial.print("get >>> ");
+  Serial.println(myData.uuid);
+
+  myData._val = 4;
 
   digitalWrite(led, HIGH);
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
@@ -187,16 +186,45 @@ void WRITE(char cardKey[16]) { // write key and uuid of the RFID card
   else {
     Serial.println("Error sending the data");
   }
-}
 
-void RFID_CTRL() { // signup ctrl func
-  timeout = millis();
-  READ();
   timeout = millis();
   if (!spc) {
     strcpy(writeData, "ku_kod_lnw$482__");
   }
   WRITE(writeData);
+
+  if (!res) {
+    strcpy(myData.uuid, "0"); // fail
+  }
+  //  else {
+  //    memcpy(&myData.uuid, uuid, 4); // success
+  //    char res_[9];
+  //    int index = 0;
+  //    for (byte i = 0; i < sizeof(uuid); i++) {
+  //      res_[index] = "0123456789ABCDEF"[uuid[i] / 16];
+  //      res_[index + 1] = "0123456789ABCDEF"[uuid[i] % 16];
+  //      index += 2;
+  //    }
+  //    res_[8] = '\0';
+  //    strcpy(myData.uuid, res_);
+  //  }
+
+  Serial.println("Writing RFID UUID!");
+  Serial.print("get >>> ");
+  Serial.println(res);
+
+  myData._val = 5;
+
+  digitalWrite(led, HIGH);
+  esp_err_t result2 = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
+  digitalWrite(led, LOW);
+
+  if (result2 == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
+  }
   state = 0;
 }
 
@@ -214,7 +242,7 @@ void setup() {
   }
 
   esp_now_register_send_cb(OnDataSent); // set on send func cb
-  esp_now_register_send_cb(OnDataSent); // set on recv func cb
+  esp_now_register_recv_cb(OnDataRecv); // set on recv func cb
 
   esp_now_peer_info_t peerInfo;
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
@@ -239,6 +267,22 @@ void setup() {
 bool chk_RFID() { // checking RFID here
   timeout = millis(); // set timeout
   READ(); // get password and uuid
+
+  if (!res) {
+    memcpy(&myData.uuid, "0", 1); // fail
+  } else {
+    //    memcpy(&myData.uuid, uuid, sizeof(uuid)); // success
+    char res_[9];
+    int index = 0;
+    for (byte i = 0; i < sizeof(uuid); i++) {
+      res_[index] = "0123456789ABCDEF"[uuid[i] / 16];
+      res_[index + 1] = "0123456789ABCDEF"[uuid[i] % 16];
+      index += 2;
+    }
+    res_[8] = '\0';
+    strcpy(myData.uuid, res_);
+  }
+
   if (res) { // read success
     char key[] = {'k', 'u', '_', 'k', 'o', 'd', '_', 'l', 'n', 'w', '$', '4', '8', '2', '_', '_'}; // default key
     int myStatus = 200; // status
@@ -297,20 +341,101 @@ void noti(void * param) {
 }
 
 void loop() {
-  if (digitalRead(btn)) { // open by btn
-    bool write_state = false;
-    int write_timeout = millis();
-    while (digitalRead(btn)) {
-      write_state = false;
-      if (millis() - write_timeout > 10000) {
-        write_state = true;
-        Serial.println("write sequence initiate");
-        spc = true;
-        notiAct = true;
-        break;
+  if (!state) {
+    if (digitalRead(btn)) { // open by btn
+      bool write_state = false;
+      int write_timeout = millis();
+      while (digitalRead(btn)) {
+        write_state = false;
+        if (millis() - write_timeout > 10000) {
+          write_state = true;
+          Serial.println("write sequence initiate");
+          spc = true;
+          notiAct = true;
+          break;
+        }
+      }
+      if (!write_state) {
+        myData._val = 1; // open sig
+        strcpy(myData.uuid, "");
+        
+        digitalWrite(led, HIGH);
+        esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send open data to master esp32
+        digitalWrite(led, LOW);
+
+        if (result == ESP_OK) {
+          Serial.println("Sent with success");
+        }
+        else {
+          Serial.println("Error sending the data");
+        }
+        vTaskDelay(5000 / ptd); // wait for door to lock
+      } else  {
+        while (1) {
+          if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
+            continue;
+          }
+          if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
+            continue;
+          }
+          state = 2;
+          strcpy(writeData, "ku_kod_lnw$482__");
+          RFID_CTRL();
+          spc = false;
+          notiAct = true;
+
+          //instructs the PICC when in the ACTIVE state to go to a "STOP" state
+          mfrc522.PICC_HaltA();
+          // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
+          mfrc522.PCD_StopCrypto1();
+          vTaskDelay(500 / ptd);
+          break;
+        }
       }
     }
-    if (!write_state) {
+    if (digitalRead(btn2)) { // open by btn
+      bool erase_state = false;
+      int erase_timeout = millis();
+      while (digitalRead(btn2)) {
+        erase_state = false;
+        if (millis() - erase_timeout > 10000) {
+          erase_state = true;
+          Serial.println("erase sequence initiate");
+          spc = true;
+          notiAct = true;
+          break;
+        }
+      }
+      if (erase_state) {
+        while (1) {
+          if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
+            continue;
+          }
+          if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
+            continue;
+          }
+          state = 2;
+          memcpy(writeData, startState, 16);
+          RFID_CTRL();
+          spc = false;
+          notiAct = true;
+
+          //instructs the PICC when in the ACTIVE state to go to a "STOP" state
+          mfrc522.PICC_HaltA();
+          // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
+          mfrc522.PCD_StopCrypto1();
+          vTaskDelay(500 / ptd);
+          break;
+        }
+      }
+    }
+    if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
+      return;
+    }
+    if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
+      return;
+    }
+    if (chk_RFID()) { // if in normal state and the RFID card is valid
       myData._val = 1; // open sig
       digitalWrite(led, HIGH);
       esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send open data to master esp32
@@ -323,102 +448,39 @@ void loop() {
         Serial.println("Error sending the data");
       }
       vTaskDelay(5000 / ptd); // wait for door to lock
-    } else  {
-      while (1) {
-        if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
-          continue;
-        }
-        if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
-          continue;
-        }
-        state = 2;
-        strcpy(writeData, "ku_kod_lnw$482__");
-        RFID_CTRL();
-        spc = false;
-        notiAct = true;
+      memcpy(buffer, startState, sizeof(buffer)); // reset buffer
+    } else {
+      strcpy(myData.uuid, "00000000");
+      myData._val = 0; // unlock failed
+      digitalWrite(led, HIGH);
+      esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send fail data to master esp32
+      digitalWrite(led, LOW);
 
-        //instructs the PICC when in the ACTIVE state to go to a "STOP" state
-        mfrc522.PICC_HaltA();
-        // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
-        mfrc522.PCD_StopCrypto1();
-        vTaskDelay(500 / ptd);
-        break;
+      if (result == ESP_OK) {
+        Serial.println("Sent with success");
       }
-    }
-  }
-  if (digitalRead(btn2)) { // open by btn
-    bool erase_state = false;
-    int erase_timeout = millis();
-    while (digitalRead(btn2)) {
-      erase_state = false;
-      if (millis() - erase_timeout > 10000) {
-        erase_state = true;
-        Serial.println("erase sequence initiate");
-        spc = true;
-        notiAct = true;
-        break;
+      else {
+        Serial.println("Error sending the data");
       }
+      vTaskDelay(3000 / ptd); // small vTaskDelay
     }
-    if (erase_state) {
-      while (1) {
-        if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
-          continue;
-        }
-        if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
-          continue;
-        }
-        state = 2;
-        memcpy(writeData, startState, 16);
-        RFID_CTRL();
-        spc = false;
-        notiAct = true;
-
-        //instructs the PICC when in the ACTIVE state to go to a "STOP" state
-        mfrc522.PICC_HaltA();
-        // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
-        mfrc522.PCD_StopCrypto1();
-        vTaskDelay(500 / ptd);
-        break;
-      }
-    }
-  }
-  if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
-    return;
-  }
-  if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
-    return;
-  }
-  if (chk_RFID() && !state) { // if in normal state and the RFID card is valid
-    myData._val = 1; // open sig
-    digitalWrite(led, HIGH);
-    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send open data to master esp32
-    digitalWrite(led, LOW);
-
-    if (result == ESP_OK) {
-      Serial.println("Sent with success");
-    }
-    else {
-      Serial.println("Error sending the data");
-    }
-    vTaskDelay(5000 / ptd); // wait for door to lock
-    memcpy(buffer, startState, sizeof(buffer)); // reset buffer
+    //instructs the PICC when in the ACTIVE state to go to a "STOP" state
+    mfrc522.PICC_HaltA();
+    // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
+    mfrc522.PCD_StopCrypto1();
   } else {
-    strcpy(myData.uuid, "00000000");
-    myData._val = 0; // unlock failed
-    digitalWrite(led, HIGH);
-    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send fail data to master esp32
-    digitalWrite(led, LOW);
-
-    if (result == ESP_OK) {
-      Serial.println("Sent with success");
+    if ( ! mfrc522.PICC_IsNewCardPresent()) { // find card
+      return;
     }
-    else {
-      Serial.println("Error sending the data");
+    if ( ! mfrc522.PICC_ReadCardSerial()) { // select card
+      return;
     }
-    vTaskDelay(3000 / ptd); // small vTaskDelay
+    RFID_CTRL(); // execute READ() or WRITE() func
+    //instructs the PICC when in the ACTIVE state to go to a "STOP" state
+    mfrc522.PICC_HaltA();
+    // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
+    mfrc522.PCD_StopCrypto1();
+    int wait = millis();
+    while (millis()- wait <= 3000);
   }
-  //instructs the PICC when in the ACTIVE state to go to a "STOP" state
-  mfrc522.PICC_HaltA();
-  // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
-  mfrc522.PCD_StopCrypto1();
 }
