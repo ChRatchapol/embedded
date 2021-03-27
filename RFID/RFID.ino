@@ -61,31 +61,10 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
   memcpy(&msg, incomingData, sizeof(msg));
   Serial.print("type: ");
   Serial.println(msg._type);
-  if (msg._type == 3) { // read RFID for signup
+  if (msg._type == 3) {
     state = 1;
-  } else if (msg._type == 4) { // write RFID for signup
-    state = 2;
   }
-  Serial.println(state);
   RFID_CTRL(); // execute READ() or WRITE() func
-  Serial.println("after READ or WRITE");
-  if (!res) {
-    strcpy(myData.uuid, "0"); // fail
-  } else {
-    strcpy(myData.uuid, uuid); // success
-  }
-  Serial.println("Sent!");
-
-  digitalWrite(led, HIGH);
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
-  digitalWrite(led, LOW);
-
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
-  }
 }
 
 void READ() { // read key and uuid of the RFID card
@@ -127,6 +106,23 @@ void READ() { // read key and uuid of the RFID card
         break;
       }
     }
+  }
+  if (!res) {
+    strcpy(myData.uuid, "0"); // fail
+  } else {
+    strcpy(myData.uuid, uuid); // success
+  }
+  Serial.println("Sent!");
+
+  digitalWrite(led, HIGH);
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
+  digitalWrite(led, LOW);
+
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
   }
 }
 
@@ -173,23 +169,35 @@ void WRITE(char cardKey[16]) { // write key and uuid of the RFID card
       res = true;
       break;
     }
+  }
+  if (!res) {
+    strcpy(myData.uuid, "0"); // fail
+  } else {
+    strcpy(myData.uuid, uuid); // success
+  }
+  Serial.println("Sent!");
 
+  digitalWrite(led, HIGH);
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send data back to master esp32
+  digitalWrite(led, LOW);
+
+  if (result == ESP_OK) {
+    Serial.println("Sent with success");
+  }
+  else {
+    Serial.println("Error sending the data");
   }
 }
 
 void RFID_CTRL() { // signup ctrl func
-  if (state == 1) {
-    timeout = millis();
-    READ();
-    state = 0;
-  } else if (state == 2) {
-    timeout = millis();
-    if (!spc) {
-      strcpy(writeData, "ku_kod_lnw$482__");
-    }
-    WRITE(writeData);
-    state = 0;
+  timeout = millis();
+  READ();
+  timeout = millis();
+  if (!spc) {
+    strcpy(writeData, "ku_kod_lnw$482__");
   }
+  WRITE(writeData);
+  state = 0;
 }
 
 void setup() {

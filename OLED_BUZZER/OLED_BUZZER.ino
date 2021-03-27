@@ -306,11 +306,11 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     oled_msg = "";
     timeout_state =  false;
     OTP_FAIL();
-  } else if ((msg._type == 3) || (msg._type == 4)) {
+  } else if (msg._type == 3) {
     oled_msg = "";
     timeout_state =  false;
     RFID();
-  } else if (msg._type == 5 && !signupState) {
+  } else if (msg._type == 4 && !signupState) {
     RFID_FAIL();
   }
   timeout = millis();

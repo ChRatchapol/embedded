@@ -45,7 +45,7 @@ reg_message myData;
 
 typedef struct internal_message {
   char _msg[9]; // 00000000 = open, 11111111 = fail if _type = 1 _msg is otp
-  int _type; // 0 = NORM, 1 = SIGNUP, 2 = OTP FAIL, 3 = READ RFID, 4 = WRITE RFID, 5 = RFID FAIL
+  int _type; // 0 = NORM, 1 = SIGNUP, 2 = OTP FAIL, 3 = RFID Sequence, 4 = RFID Fail
 } internal_message;
 internal_message msg;
 
@@ -75,33 +75,10 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     }
     msg._type = 0;
   } else if (myData._val == 2) { // button OTP verify successful
-    //    if (strcmp(myData.uuid, "1111111") == 0) {
-    //      strcpy(msg._msg, "11111111"); // just placeholder
-    //      msg._type = 3; // RFID Read
-    //
-    //      digitalWrite(led, HIGH);
-    //      esp_err_t result = esp_now_send(broadcastAddressRFID, (uint8_t *) &msg, sizeof(msg)); // tell RFID to read uuid and send back
-    //      digitalWrite(led, LOW);
-    //
-    //      if (result == ESP_OK) {
-    //        Serial.println("Sent with success");
-    //      }
-    //      else {
-    //        Serial.println("Error sending the data");
-    //      }
-    //    } else {
-    //      strcpy(_UUID, ""); // no RFID
-    //      state = 2; // send data back to backend
-    //      strcpy(msg._msg, "01011010"); // just placeholder
-    //      msg._type = 0; // normal type
-    //    }
-
-    // this section is only for demo
     strcpy(_UUID, ""); // no RFID
     state = 2; // send data back to backend
     strcpy(msg._msg, "01011010"); // just placeholder
     msg._type = 0; // normal type
-    // end of demo section
     
   } else if (myData._val == 3) { // button otp verify failed
     state = 0;
@@ -113,7 +90,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     if (strcmp(myData.uuid, "0") == 0) {
       state = 0;
       failed = true;
-      msg._type = 5;
+      msg._type = 4;
     } else {
       strcpy(_UUID, myData.uuid);
       state = 2; // send data to backend
@@ -123,7 +100,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
   } else if (myData._val == 5) { // RFID Write finish
     if (strcmp(myData.uuid, "0") == 0) {
       failed = true;
-      msg._type = 5;
+      msg._type = 4;
     } else {
       strcpy(msg._msg, "11111111"); // just placeholder
       msg._type = 0; // normal type
@@ -209,7 +186,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       else {
         Serial.println("Error sending the data");
       }
-    } else if ((_type_ == 4) && (state == 0)) { // start writing RFID sequence
+    } else if ((_type_ == 4) && (state == 0)) { // start signup RFID sequence
       strcpy(msg._msg, "11111111"); // just placeholder
       msg._type = 1; // tell RFID to start writing sequence
 
@@ -224,8 +201,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
         Serial.println("Error sending the data");
       }
 
-      strcpy(msg._msg, "11111111"); // just placeholder
-      msg._type = 4; // tell RFID to start writing sequence
+      msg._type = 3; // tell RFID to start read-write sequence
 
       digitalWrite(led, HIGH);
       esp_err_t result2 = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // tell OLED to show RFID Write message sequence

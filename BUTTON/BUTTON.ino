@@ -78,103 +78,6 @@ void setup() {
   }
 }
 
-void waitRFID(void * param) {
-  timeout = millis();
-  int count;
-  while (millis() - timeout <= 60000) {
-    if (!digitalRead(green)) {
-      stateGrn = 0;
-      count = 70;
-      while (1) {
-        count--;
-        if (count <= 0) {
-          stateGrn = 1;
-          break;
-        } else {
-          if (digitalRead(green)) {
-            count++;
-            if (count >= 140) {
-              break;
-            }
-          }
-          delay(1);
-        }
-      }
-      if (stateGrn) {
-        myData._val = 2;
-        strcpy(myData.uuid, "1111111");
-        break;
-      }
-      count = 70;
-      while (1) {
-        count--;
-        if (count <= 0) {
-          stateGrn = 0;
-          break;
-        } else {
-          if (!digitalRead(green)) {
-            count++;
-            if (count >= 140) {
-              break;
-            }
-          }
-          delay(1);
-        }
-      }
-    } else if (!digitalRead(red)) {
-      stateRed = 0;
-      count = 70;
-      while (1) {
-        count--;
-        if (count <= 0) {
-          stateRed = 1;
-          break;
-        } else {
-          if (digitalRead(red)) {
-            count++;
-            if (count >= 140) {
-              break;
-            }
-          }
-          delay(1);
-        }
-      }
-      if (stateRed) {
-        myData._val = 2;
-        strcpy(myData.uuid, "0000000");
-        break;
-      }
-      count = 70;
-      while (1) {
-        count--;
-        if (count <= 0) {
-          stateRed = 0;
-          break;
-        } else {
-          if (!digitalRead(red)) {
-            count++;
-            if (count >= 140) {
-              break;
-            }
-          }
-          delay(1);
-        }
-      }
-    }
-    vTaskDelay(10 / ptd);
-  }
-  digitalWrite(led, HIGH);
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-  digitalWrite(led, LOW);
-
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
-  }
-  vTaskDelete(NULL);
-}
 
 void chk_btn(void * param) { // checking btn here
   std::string otp = "";
@@ -351,7 +254,17 @@ void chk_btn(void * param) { // checking btn here
   if (cmp.compare(otp) == 0) {
     myData._val = 2;
     Serial.println("verify!");
-    xTaskCreatePinnedToCore(waitRFID, "wait RFID", 1024, NULL, 1, &waitRFIDTask, 0);
+    
+    digitalWrite(led, HIGH);
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+    digitalWrite(led, LOW);
+
+    if (result == ESP_OK) {
+      Serial.println("Sent with success");
+    }
+    else {
+      Serial.println("Error sending the data");
+    }
   } else {
     Serial.println("invalid otp!");
     strcpy(myData.uuid, "00000000");
