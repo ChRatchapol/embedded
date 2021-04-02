@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <MFRC522.h> //library responsible for communicating with the module RFID-RC522
 #include <SPI.h> //library responsible for communicating of SPI bus
+#include "mbedtls/aes.h"
 
 #define SS_PIN 21
 #define RST_PIN 22
@@ -41,11 +42,12 @@ int btn2 = 35; // for write
 int state = 0; // 0 = NORM, 1 = READ, 2 = WRITE
 int timeout = millis(); // timeout for all activity
 char uuid[8]; // uuid of the RFID card
+char rev_uuid[9];
 bool res; // state ctrl
 byte buffer[SIZE_BUFFER] = {0}; // buffer for read data
 byte writeBuffer[SIZE_BUFFER]; // buffer for write data
 byte startState[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // RFID start state
-char writeData[16];
+unsigned char writeData[17];
 bool spc = false;
 bool notiAct = false;
 
@@ -64,6 +66,36 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     state = 1;
   }
 }
+
+void encrypt(char * plainText, char * key, unsigned char * outputBuffer) {
+
+  mbedtls_aes_context aes;
+
+  mbedtls_aes_init( &aes );
+  mbedtls_aes_setkey_enc( &aes, (const unsigned char*) key, strlen(key) * 8 );
+  mbedtls_aes_crypt_ecb( &aes, MBEDTLS_AES_ENCRYPT, (const unsigned char*)plainText, outputBuffer);
+  mbedtls_aes_free( &aes );
+}
+
+void decrypt(unsigned char * chipherText, char * key, unsigned char * outputBuffer) {
+
+  mbedtls_aes_context aes;
+
+  mbedtls_aes_init( &aes );
+  mbedtls_aes_setkey_dec( &aes, (const unsigned char*) key, strlen(key) * 8 );
+  mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, (const unsigned char*)chipherText, outputBuffer);
+  mbedtls_aes_free( &aes );
+}
+
+void reverse(char * string, int len) {
+  char res[len + 1];
+  for (int i = 0; i < len; i++) {
+    res[i] = string[len - i - 1];
+  }
+  res[len] = '\0';
+  strcpy(rev_uuid, res);
+}
+
 
 void READ() { // read key and uuid of the RFID card
   while (millis() - timeout <= 60000) {
@@ -98,7 +130,18 @@ void READ() { // read key and uuid of the RFID card
         Serial.print(F("\nData from block ["));
         Serial.print(block); Serial.print(F("]: "));
         //prints read data
-        bufferPrint();
+        for (int i = 0; i < 16; i++) {
+          char tmp_hex[3];
+          tmp_hex[0] = "0123456789ABCDEF"[buffer[i] / 16];
+          tmp_hex[1] = "0123456789ABCDEF"[buffer[i] % 16];
+          tmp_hex[2] = '\0';
+          Serial.print(tmp_hex);
+          if (i == 15) {
+            Serial.println("");
+          } else {
+            Serial.print(" ");
+          }
+        }
         res = true;
         break;
       }
@@ -106,7 +149,7 @@ void READ() { // read key and uuid of the RFID card
   }
 }
 
-void WRITE(char cardKey[16]) { // write key and uuid of the RFID card
+void WRITE(unsigned char cardKey[16]) { // write key and uuid of the RFID card
   memcpy(&writeBuffer, cardKey, 16); // default key
   while (millis() - timeout <= 60000) {
 
@@ -189,25 +232,18 @@ void RFID_CTRL() { // signup ctrl func
 
   timeout = millis();
   if (!spc) {
-    strcpy(writeData, "ku_kod_lnw$482__");
+    char k[20];
+    strcpy(k, myData.uuid);
+    reverse(myData.uuid, 8);
+    strcat(k, rev_uuid);
+    encrypt("ku_kod_lnw$482__", k, writeData);
   }
+  Serial.println("writeData prepare");
   WRITE(writeData);
 
   if (!res) {
     strcpy(myData.uuid, "0"); // fail
   }
-  //  else {
-  //    memcpy(&myData.uuid, uuid, 4); // success
-  //    char res_[9];
-  //    int index = 0;
-  //    for (byte i = 0; i < sizeof(uuid); i++) {
-  //      res_[index] = "0123456789ABCDEF"[uuid[i] / 16];
-  //      res_[index + 1] = "0123456789ABCDEF"[uuid[i] % 16];
-  //      index += 2;
-  //    }
-  //    res_[8] = '\0';
-  //    strcpy(myData.uuid, res_);
-  //  }
 
   Serial.println("Writing RFID UUID!");
   Serial.print("get >>> ");
@@ -284,17 +320,37 @@ bool chk_RFID() { // checking RFID here
   }
 
   if (res) { // read success
-    char key[] = {'k', 'u', '_', 'k', 'o', 'd', '_', 'l', 'n', 'w', '$', '4', '8', '2', '_', '_'}; // default key
+    //    char key[] = {'k', 'u', '_', 'k', 'o', 'd', '_', 'l', 'n', 'w', '$', '4', '8', '2', '_', '_'}; // default key
+    unsigned char key[17];
     int myStatus = 200; // status
 
+
+    char k[20]; // decrypt key
+    strcpy(k, myData.uuid);
+    reverse(myData.uuid, 8);
+    strcat(k, rev_uuid);
+    encrypt("ku_kod_lnw$482__", k, key);
+
     //prints read data
-    bufferPrint(); // for debug
     for (uint8_t i = 0; i < MAX_SIZE_BLOCK; i++) { // check the RFID's key
-      Serial.printf("%c ----------- %c\n", buffer[i], key[i]);
-      if ((buffer[i] != ' ') && (buffer[i] != key[i])) {
+      char read_hex[3];
+      read_hex[0] = "0123456789ABCDEF"[buffer[i] / 16];
+      read_hex[1] = "0123456789ABCDEF"[buffer[i] % 16];
+      read_hex[2] = '\0';
+
+      char key_hex[3];
+      key_hex[0] = "0123456789ABCDEF"[key[i] / 16];
+      key_hex[1] = "0123456789ABCDEF"[key[i] % 16];
+      key_hex[2] = '\0';
+
+      if ((buffer[i] != ' ') && (strcmp(read_hex, key_hex) != 0)) {
         myStatus = 401;
         break;
       }
+      
+      Serial.print(read_hex);
+      Serial.print(" ----------- ");
+      Serial.println(key_hex);
     }
 
     if ( myStatus == 200 ) { // valid
@@ -358,7 +414,7 @@ void loop() {
       if (!write_state) {
         myData._val = 1; // open sig
         strcpy(myData.uuid, "");
-        
+
         digitalWrite(led, HIGH);
         esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData)); // send open data to master esp32
         digitalWrite(led, LOW);
@@ -379,9 +435,8 @@ void loop() {
             continue;
           }
           state = 2;
-          strcpy(writeData, "ku_kod_lnw$482__");
-          RFID_CTRL();
           spc = false;
+          RFID_CTRL();
           notiAct = true;
 
           //instructs the PICC when in the ACTIVE state to go to a "STOP" state
@@ -481,6 +536,6 @@ void loop() {
     // "stop" the encryption of the PCD, it must be called after communication with authentication, otherwise new communications can not be initiated
     mfrc522.PCD_StopCrypto1();
     int wait = millis();
-    while (millis()- wait <= 3000);
+    while (millis() - wait <= 3000);
   }
 }

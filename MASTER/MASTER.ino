@@ -15,6 +15,8 @@
 #define sig 23 // for relay
 #define btn 19 // for debug
 
+#define elec_up 36 // for elcetrical checking
+
 TaskHandle_t i2cTask = NULL;
 
 const int _size = 3 * JSON_OBJECT_SIZE(5);
@@ -76,6 +78,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
       unlockFrom = 2;
       OPEN(); // open
       strcpy(msg._msg, "00000000"); // tell OLED to show open sequence on screen
+    } else if (!digitalRead(elec_up)) {
+      OPEN(); // open
     }
     led_blink(5, 100);
   } else if (myData._val == 0) { // fail sig
@@ -147,6 +151,16 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
   char x = WireSlave.read();
   recvStr[i] = x;
 
+  Serial.print("get >> ");
+  int index = 0;
+  while (1) {
+    Serial.print(recvStr[index]);
+    if (recvStr[index] == '}') {
+      Serial.println("");
+      break;
+    }
+    index++;
+  }
 
   DeserializationError err = deserializeJson(JSONRecv, recvStr);
   if (err) {
@@ -298,6 +312,7 @@ void setup() {
   pinMode(led, OUTPUT);
   pinMode(sig, OUTPUT);
   pinMode(btn, INPUT_PULLUP);
+  pinMode(elec_up, INPUT);
   digitalWrite(sig, HIGH);
 
   WiFi.mode(WIFI_STA); // for esp-now
@@ -398,6 +413,7 @@ void i2c_sending(void* param) { // always polling request from i2c master
 }
 
 void OPEN() { // func that unlock the lock
+  Serial.println("OPEN");
   if (state == 0 && !unlock_state) { // only unlock if in idle state (not in signup sequence)
     digitalWrite(sig, LOW);
     timeout = millis();
@@ -432,6 +448,7 @@ void loop() { // control
     else {
       Serial.println("Error sending the data");
     }
+    Serial.println("Here");
     unlockFrom = 255; // logging uuid verify timeout
     logging();
     uuid_verify_wait_state = false;
