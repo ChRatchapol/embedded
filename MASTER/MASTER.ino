@@ -25,6 +25,7 @@ char str[100];
 char recvStr[100];
 char _UUID[9];
 char OTP[8];
+char line_uuid[34];
 
 bool failed = false;
 int state = 0; // 0 = idle, 1 = waiting for OTP verification, 2 = finishing signup sequence
@@ -79,7 +80,10 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
       OPEN(); // open
       strcpy(msg._msg, "00000000"); // tell OLED to show open sequence on screen
     } else if (!digitalRead(elec_up)) {
+      uuid_verify_wait_state = false;
+      unlockFrom = 0;
       OPEN(); // open
+      strcpy(msg._msg, "00000000"); // tell OLED to show open sequence on screen
     }
     led_blink(5, 100);
   } else if (myData._val == 0) { // fail sig
@@ -104,7 +108,6 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     strcpy(msg._msg, "11111111"); // just placeholder
     msg._type = 2; // tell OLED to show OTP verification fail
   } else if (myData._val == 4) { // RFID UUID recv
-    //    Serial.println(myData.uuid);
     if (strcmp(myData.uuid, "0") == 0) {
       state = 0;
       failed = true;
@@ -112,7 +115,9 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
     } else {
       strcpy(_UUID, myData.uuid);
       _UUID[8] = '\0';
-      state = 2; // send data to backend
+      if (state ==  1) {
+        state = 2; // send data to backend
+      }
       strcpy(msg._msg, "01011010"); // just placeholder
       msg._type = 0; // normal type
     }
@@ -121,7 +126,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
       failed = true;
       msg._type = 4;
     } else {
-      strcpy(msg._msg, "11111111"); // just placeholder
+      strcpy(msg._msg, "01011010"); // just placeholder
       msg._type = 0; // normal type
     }
     state = 0;
@@ -133,7 +138,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) { // 
   digitalWrite(led, LOW);
 
   if (result == ESP_OK) {
-    Serial.println("Sent with success");
+    Serial.println("Sent with success main");
   }
   else {
     Serial.println("Error sending the data");
@@ -189,7 +194,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       digitalWrite(led, LOW);
 
       if (result == ESP_OK) {
-        Serial.println("Sent with success");
+        Serial.println("Sent with success otp");
       }
       else {
         Serial.println("Error sending the data");
@@ -201,8 +206,8 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       int _from_ = JSONRecv["by"];
       if (_from_ == 1) {
         unlockFrom = 1;
-        strcpy(_UUID, JSONRecv["uuid"]);
-        _UUID[8] = '\0';
+        strcpy(line_uuid, JSONRecv["uuid"]);
+        line_uuid[33] = '\0';
         logging();
         OPEN(); // open
 
@@ -232,7 +237,7 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
         digitalWrite(led, LOW);
 
         if (result == ESP_OK) {
-          Serial.println("Sent with success");
+          Serial.println("Sent with success 3");
         }
         else {
           Serial.println("Error sending the data");
@@ -262,29 +267,46 @@ void receiveEvent(int howMany) { // execute on recv i2c packet
       digitalWrite(led, LOW);
 
       if (result2 == ESP_OK) {
-        Serial.println("Sent with success");
+        Serial.println("Sent with success 4 signup");
       }
       else {
         Serial.println("Error sending the data");
       }
     } else if (_type_ == 5) { // uuid verify failed
+      uuid_verify_wait_state = false;
       strcpy(msg._msg, "11111111"); // tell OLED to show fail sequence on screen
       led_blink(2, 50);
 
       msg._type = 0;
 
       digitalWrite(led, HIGH);
-      esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
+      esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg));
       digitalWrite(led, LOW);
 
       if (result == ESP_OK) {
-        Serial.println("Sent with success");
+        Serial.println("Sent with success uuid fail");
       }
       else {
         Serial.println("Error sending the data");
       }
       unlockFrom = 255; // logging invalid uuid
       logging();
+    } else if (_type_ == 255) {
+      state = 0;
+
+      strcpy(msg._msg, "01011010"); // just placeholder
+      msg._type = 0; // normal type
+
+      digitalWrite(led, HIGH);
+      esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg));
+      digitalWrite(led, LOW);
+
+      if (result == ESP_OK) {
+        Serial.println("Sent with success signup cancel");
+      }
+      else {
+        Serial.println("Error sending the data");
+      }
     } else if (_type_ == 0) {
       myData._val = 255; // idle
       unlockFrom = 0;
@@ -303,7 +325,6 @@ void requestEvent() { // execute on rqst i2c packet
   for (int i = 0; i < (70 - strlen(str)); i++) { // padding
     WireSlave.write(0x00);
   }
-  unlockFrom = 0;
   logging();
 }
 
@@ -388,14 +409,17 @@ void logging() { // func to send data through i2c
     if (((unlockFrom >= 0) && (unlockFrom <= 2) || (unlockFrom == 255)) && (state == 0) && (unlock_state) && (!lock_type2)) { // send normal logging when open the door
       lock_type2 = true;
       JSONSend["type"] = 2;
-      JSONSend["uuid"] = _UUID;
       if (unlockFrom == 0) {
+        JSONSend["uuid"] = _UUID;
         JSONSend["from"] = "RFID";
       } else if (unlockFrom == 1) {
+        JSONSend["uuid"] = line_uuid;
         JSONSend["from"] = "LINE";
       } else if (unlockFrom == 2) {
+        JSONSend["uuid"] = _UUID;
         JSONSend["from"] = "Bttn";
       } else if (unlockFrom == 255) {
+        JSONSend["uuid"] = _UUID;
         JSONSend["from"] = "ERR.";
       }
     } else if (state == 0 || state == 1) { // send idle data
@@ -439,16 +463,16 @@ void loop() { // control
     msg._type = 0;
 
     digitalWrite(led, HIGH);
-    esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg)); // send OTP to OLED
+    esp_err_t result = esp_now_send(broadcastAddressOLED, (uint8_t *) &msg, sizeof(msg));
     digitalWrite(led, LOW);
 
     if (result == ESP_OK) {
-      Serial.println("Sent with success");
+      Serial.println("Sent with success timeout");
     }
     else {
       Serial.println("Error sending the data");
     }
-    Serial.println("Here");
+    Serial.println("fail here");
     unlockFrom = 255; // logging uuid verify timeout
     logging();
     uuid_verify_wait_state = false;
