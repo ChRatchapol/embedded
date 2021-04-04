@@ -2,6 +2,9 @@
 ---
 ระบบล็อกไฟฟ้าที่ถูกออกแบบ และพัฒนาขึ้นมาเพื่อติดตั้งที่ห้องชุมนุมนิสิตวิศวกรรมคอมพิวเตอร์ มหาวิทยาลัยเกษตรศาสตร์ บางเขน 
 
+### GIT
+[GitHub](https://github.com/ChRatchapol/embedded)
+
 ### Document
 ---
 สำหรับดีเทลของการทำงานและวิธีใช้งานโดยละเอียด : [DOCS](https://docs.google.com/document/d/1m7Co31eBxPfTf1kkZ65ozW7nJEDyzLJ_TLQgXgb0yN0/edit?usp=sharing)
